@@ -1,0 +1,11 @@
+{
+  "name": "TwinApp",
+  "short_name": "TwinApp",
+  "description": "Pruébate tu ropa en tu gemelo digital",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3F2F7",
+  "theme_color": "#4B3FE0",
+  "icons": []
+}

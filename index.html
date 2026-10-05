@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4B3FE0">
+<title>TwinApp</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --fondo:#F3F2F7; --tinta:#1E1B3A; --twin:#4B3FE0; --menta:#BFEBD7; --suave:#6E6A8C; }
+  * { box-sizing:border-box; margin:0; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body { font-family:"Bricolage Grotesque",system-ui,sans-serif; background:var(--fondo); color:var(--tinta); }
+  :focus-visible { outline:2px solid var(--twin); outline-offset:2px; }
+  [hidden] { display:none !important; }
+  .marca { font-size:3rem; font-weight:700; letter-spacing:-.03em; }
+  .marca span { color:var(--twin); }
+  .suave { color:var(--suave); }
+  h1 { font-size:1.9rem; letter-spacing:-.02em; }
+
+  /* Login */
+  #login { max-width:28rem; min-height:100dvh; margin:0 auto; padding:2.5rem 1.5rem; display:flex; flex-direction:column; justify-content:center; }
+  #login form { margin-top:2.5rem; display:grid; gap:.75rem; }
+  input { width:100%; font:inherit; font-size:1rem; padding:.85rem 1rem; border:1px solid rgba(30,27,58,.15); border-radius:.85rem; background:#fff; color:var(--tinta); }
+  input:focus { border-color:var(--twin); outline:none; }
+  .btn { font:inherit; font-weight:600; font-size:1rem; padding:.85rem 1rem; border:0; border-radius:.85rem; background:var(--twin); color:#fff; cursor:pointer; }
+  .btn:active { transform:scale(.98); }
+  .btn:disabled { opacity:.6; }
+  .btn.sec { background:transparent; color:var(--tinta); border:1px solid rgba(30,27,58,.2); font-weight:500; font-size:.9rem; padding:.6rem 1rem; }
+  .link { background:none; border:0; font:inherit; font-size:.9rem; color:var(--suave); text-decoration:underline; margin-top:1.5rem; cursor:pointer; align-self:flex-start; }
+  #msg { font-size:.9rem; color:#c0392b; }
+  #msg.ok { color:var(--twin); }
+
+  /* App */
+  #app { max-width:28rem; margin:0 auto; min-height:100dvh; padding-bottom:calc(5rem + env(safe-area-inset-bottom,0px)); }
+  .vista { padding:2.5rem 1.5rem 0; }
+  .vista p { margin-top:.75rem; }
+  .vista .btn { margin-top:2rem; }
+  nav { position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,.95); backdrop-filter:blur(8px); border-top:1px solid rgba(30,27,58,.1); padding-bottom:env(safe-area-inset-bottom,0px); }
+  nav ul { list-style:none; padding:0; margin:0 auto; max-width:28rem; display:grid; grid-template-columns:repeat(4,1fr); }
+  nav button { width:100%; background:none; border:0; font:inherit; font-size:.75rem; color:var(--suave); padding:.7rem 0; display:flex; flex-direction:column; align-items:center; gap:.25rem; cursor:pointer; }
+  nav button svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  nav button[aria-current="page"] { color:var(--twin); font-weight:600; }
+  nav button[aria-current="page"] svg { stroke-width:2.4; }
+</style>
+</head>
+<body>
+
+<main id="login" hidden>
+  <div class="marca">Twin<span>App</span></div>
+  <p class="suave" style="margin-top:.75rem">Pruébate tu ropa en tu gemelo digital.</p>
+  <form id="form">
+    <input id="username" placeholder="Nombre de usuario" autocomplete="nickname" hidden>
+    <input id="email" type="email" placeholder="Correo" autocomplete="email" required>
+    <input id="password" type="password" placeholder="Contraseña (mínimo 6 caracteres)" minlength="6" autocomplete="current-password" required>
+    <p id="msg" role="alert"></p>
+    <button class="btn" id="enviar">Entrar</button>
+  </form>
+  <button class="link" id="alternar" type="button">No tengo cuenta, crear una</button>
+</main>
+
+<div id="app" hidden>
+  <section class="vista" id="v-probador">
+    <h1>Probador</h1>
+    <p class="suave">Primero sube tus fotos en la pestaña Yo para crear tu gemelo.</p>
+  </section>
+  <section class="vista" id="v-armario" hidden>
+    <h1>Armario</h1>
+    <p class="suave">Aún no tienes prendas. Añade la primera para empezar.</p>
+  </section>
+  <section class="vista" id="v-outfits" hidden>
+    <h1>Outfits</h1>
+    <p class="suave">Cuando guardes una combinación desde el Probador, aparecerá aquí.</p>
+  </section>
+  <section class="vista" id="v-yo" hidden>
+    <h1>Yo</h1>
+    <p class="suave">Aquí subirás tus fotos de frente y de espalda.</p>
+    <button class="btn sec" id="salir">Cerrar sesión</button>
+  </section>
+
+  <nav aria-label="Principal">
+    <ul>
+      <li><button data-v="probador"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg>Probador</button></li>
+      <li><button data-v="armario"><svg viewBox="0 0 24 24"><path d="M9 3l-6 4 2.5 3.5L8 9v12h8V9l2.5 1.5L21 7l-6-4a3 3 0 0 1-6 0z"/></svg>Armario</button></li>
+      <li><button data-v="outfits"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>Outfits</button></li>
+      <li><button data-v="yo"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>Yo</button></li>
+    </ul>
+  </nav>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // La clave "publishable" está pensada para ir en el navegador;
+  // la seguridad real la dan las reglas por usuario (RLS) de la base de datos.
+  const SUPABASE_URL = "https://xblsqxgagysufgaxydki.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_CuKlpfRSWOtHamxpCp9RYg_Vsznq-7C";
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const $ = (id) => document.getElementById(id);
+  let modo = "entrar";
+
+  // ---- Navegación ----
+  function ir(v) {
+    document.querySelectorAll(".vista").forEach((s) => (s.hidden = s.id !== "v-" + v));
+    document.querySelectorAll("nav button").forEach((b) =>
+      b.dataset.v === v ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+    history.replaceState(null, "", "#" + v);
+  }
+  document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => ir(b.dataset.v)));
+
+  function mostrar(sesion) {
+    $("login").hidden = !!sesion;
+    $("app").hidden = !sesion;
+    if (sesion) ir(location.hash.slice(1) || "probador");
+  }
+
+  // ---- Login / registro ----
+  $("alternar").addEventListener("click", () => {
+    modo = modo === "entrar" ? "crear" : "entrar";
+    $("username").hidden = modo === "entrar";
+    $("username").required = modo === "crear";
+    $("password").autocomplete = modo === "entrar" ? "current-password" : "new-password";
+    $("enviar").textContent = modo === "entrar" ? "Entrar" : "Crear cuenta";
+    $("alternar").textContent = modo === "entrar" ? "No tengo cuenta, crear una" : "Ya tengo cuenta, entrar";
+    $("msg").textContent = "";
+  });
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("msg"), btn = $("enviar");
+    msg.className = ""; msg.textContent = ""; btn.disabled = true;
+    const email = $("email").value.trim(), password = $("password").value;
+
+    if (modo === "entrar") {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) msg.textContent = "Correo o contraseña incorrectos.";
+    } else {
+      const { data, error } = await sb.auth.signUp({
+        email, password, options: { data: { username: $("username").value.trim() } },
+      });
+      if (error) msg.textContent = error.message;
+      else if (!data.session) { msg.className = "ok"; msg.textContent = "Cuenta creada. Revisa tu correo para confirmarla y luego entra."; }
+    }
+    btn.disabled = false;
+  });
+
+  $("salir").addEventListener("click", () => sb.auth.signOut());
+
+  // ---- Sesión ----
+  sb.auth.onAuthStateChange((_evento, sesion) => mostrar(sesion));
+  sb.auth.getSession().then(({ data }) => mostrar(data.session));
+</script>
+</body>
+</html>
