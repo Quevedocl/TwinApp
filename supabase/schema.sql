@@ -70,3 +70,7 @@ create policy "archivos propios: borrar" on storage.objects for delete to authen
 
 -- 7) El trigger no debe poder llamarse desde la API
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
+
+-- 8) Probador con IA: fotos con traje gris y vista previa de outfits
+alter table public.profiles add column base_front_path text, add column base_back_path text;
+alter table public.outfits add column preview_path text;

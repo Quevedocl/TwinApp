@@ -75,6 +75,10 @@
   select{font:inherit;padding:.85rem 1rem;border:1px solid rgba(30,27,58,.15);border-radius:.85rem;background:#fff}
   .vista .ctrl .btn,.vista .card .btn,.vista .lista .btn,.vista #fg .btn,.vista .arriba{margin-top:0}
   .ctrl .btn,.card .btn,.lista .btn{padding:.5rem .8rem;font-size:.85rem}
+  .ctrl{flex-wrap:wrap}
+  .tile label{display:flex;flex-direction:column;gap:.4rem;cursor:pointer}
+  .tile .btn{margin-top:.25rem;padding:.5rem .8rem;font-size:.85rem}
+  .hf{margin-top:1.5rem;display:grid;gap:.5rem}
 </style>
 </head>
 <body>
@@ -117,17 +121,17 @@
   const SUPABASE_KEY = "sb_publishable_CuKlpfRSWOtHamxpCp9RYg_Vsznq-7C";
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const IMGLY = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/+esm";
+  const GRADIO = "https://cdn.jsdelivr.net/npm/@gradio/client@1/+esm";
+  // Modelo de prueba virtual (Space gratuito de Hugging Face). Si algún día cambia, se edita aquí.
+  const HF_SPACE = "zhengchong/CatVTON", HF_ENDPOINT = "/submit_function";
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const CAT = { superior: "Superior", inferior: "Inferior", enterito: "Enterito", abrigo: "Abrigo", calzado: "Calzado" };
-  // Posición inicial (% del escenario), ancho (%) y orden de capas por categoría
-  const DEF = {
-    superior: { x: 50, y: 30, w: 50, z: 4 }, inferior: { x: 50, y: 64, w: 44, z: 1 },
-    enterito: { x: 50, y: 47, w: 52, z: 3 }, abrigo: { x: 50, y: 32, w: 62, z: 5 },
-    calzado: { x: 50, y: 92, w: 38, z: 2 },
-  };
-  const S = { user: null, profile: {}, garments: [], outfits: [], gu: {}, au: {}, worn: [], active: null, side: "front", form: false, para: null };
+  const PROBABLES = ["superior", "inferior", "enterito", "abrigo"];
+  const ORDEN = ["inferior", "enterito", "superior", "abrigo"];            // de abajo hacia arriba
+  const TIPO = { inferior: "lower", enterito: "overall", superior: "upper", abrigo: "upper" };
+  const S = { user: null, profile: {}, garments: [], outfits: [], gu: {}, au: {}, ou: {}, sel: [], res: {}, side: "front", form: false, para: null, busy: false };
   const uid = () => S.user.id;
   const garm = (id) => S.garments.find((g) => g.id === id);
 
@@ -136,12 +140,20 @@
     clearTimeout(aviso.t); if (ms) aviso.t = setTimeout(() => (el.hidden = true), ms);
   }
 
-  // ---- Imágenes: reducir, quitar fondo (en el teléfono) y recortar ----
-  async function aBlob(canvas) { return new Promise((r) => canvas.toBlob(r, "image/png")); }
+  // ---- Imágenes ----
+  const aBlob = (c, tipo = "image/png", q) => new Promise((r) => c.toBlob(r, tipo, q));
+  async function lienzo(src, maxH, blanco) {
+    const bmp = await createImageBitmap(src, { imageOrientation: "from-image" });
+    const k = Math.min(1, maxH / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    const ctx = c.getContext("2d");
+    if (blanco) { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); }
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    return c;
+  }
+  const comoJpeg = async (src, maxH = 1024) => aBlob(await lienzo(src, maxH, true), "image/jpeg", 0.92);
   async function recortar(blob) {
-    const bmp = await createImageBitmap(blob);
-    const c = document.createElement("canvas"); c.width = bmp.width; c.height = bmp.height;
-    const ctx = c.getContext("2d"); ctx.drawImage(bmp, 0, 0);
+    const c = await lienzo(blob, 4096), ctx = c.getContext("2d");
     const d = ctx.getImageData(0, 0, c.width, c.height).data;
     let x0 = c.width, y0 = c.height, x1 = 0, y1 = 0;
     for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++)
@@ -151,22 +163,52 @@
     o.getContext("2d").drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
     return aBlob(o);
   }
-  async function preparar(file) {
-    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
-    const k = Math.min(1, 1024 / Math.max(bmp.width, bmp.height));
-    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
-    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-    let sinFondo;
+  // Prenda: quita el fondo en el teléfono y recorta (solo para el armario)
+  async function prepararPrenda(file) {
+    const peq = await aBlob(await lienzo(file, 1024));
     try {
       const { removeBackground } = await import(IMGLY);
-      sinFondo = await removeBackground(await aBlob(c), { model: "isnet_quint8", output: { format: "image/png" } });
-    } catch (e) { console.error(e); throw new Error("No se pudo quitar el fondo. Revisa tu conexión e inténtalo de nuevo."); }
-    return recortar(sinFondo);
+      return recortar(await removeBackground(peq, { model: "isnet_quint8", output: { format: "image/png" } }));
+    } catch (e) { console.error(e); throw new Error("No se pudo quitar el fondo de la prenda. Revisa tu conexión e inténtalo de nuevo."); }
+  }
+  // Traje gris genérico (silueta plana sobre fondo blanco) que se usa para "vaciar" la ropa original
+  async function trajeGris() {
+    const c = document.createElement("canvas"); c.width = 768; c.height = 1024;
+    const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, 768, 1024);
+    const m = [[330,110],[210,150],[120,330],[210,375],[262,300],[272,520],[255,620],[240,960],[365,960],[384,640]];
+    x.beginPath(); m.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b)));
+    [...m].reverse().forEach(([a, b]) => x.lineTo(768 - a, b));
+    x.quadraticCurveTo(384, 230, 330, 110); x.closePath();
+    x.fillStyle = "#8b9099"; x.fill(); x.lineWidth = 4; x.strokeStyle = "#6c7079"; x.stroke();
+    return aBlob(c, "image/jpeg", 0.95);
   }
 
-  // ---- Supabase: archivos y datos ----
+  // ---- Prueba virtual con IA (Hugging Face, gratis) ----
+  let hf = null, hfTok = null, capaVacia = null;
+  async function vestir(persona, prenda, tipo) {
+    const token = localStorage.getItem("hf_token") || undefined;
+    const { Client, handle_file } = await import(GRADIO);
+    if (!hf || hfTok !== token) { hf = await Client.connect(HF_SPACE, token ? { hf_token: token } : {}); hfTok = token; }
+    if (!capaVacia) { const c = document.createElement("canvas"); c.width = c.height = 8; capaVacia = await aBlob(c); }
+    const r = await hf.predict(HF_ENDPOINT, {
+      person_image: { background: handle_file(persona), layers: [handle_file(capaVacia)], composite: null },
+      cloth_image: handle_file(prenda), cloth_type: tipo,
+      num_inference_steps: 30, guidance_scale: 2.5, seed: 42, show_type: "result only",
+    });
+    const f = r.data?.[0]; const url = f?.url || f?.path || f;
+    if (!url || typeof url !== "string") throw new Error("El modelo no devolvió una imagen.");
+    const resp = await fetch(url); if (!resp.ok) throw new Error("No se pudo descargar la imagen generada.");
+    return resp.blob();
+  }
+  const errIA = (e) => {
+    const t = String(e?.message || e || "");
+    return /quota|GPU|limit/i.test(t) ? "Se acabó tu cupo gratuito de GPU por ahora. Añade tu token de Hugging Face en Yo o espera un rato."
+      : "No se pudo generar la imagen (" + t.slice(0, 120) + "). Reintenta en un momento.";
+  };
+
+  // ---- Supabase ----
   async function subir(bucket, path, blob) {
-    const { error } = await sb.storage.from(bucket).upload(path, blob, { contentType: "image/png", upsert: true });
+    const { error } = await sb.storage.from(bucket).upload(path, blob, { contentType: blob.type || "image/png", upsert: true });
     if (error) throw error;
   }
   async function firmar(bucket, paths) {
@@ -181,103 +223,117 @@
       sb.from("outfits").select("*").order("created_at", { ascending: false }),
     ]);
     S.profile = p.data || {}; S.garments = g.data || []; S.outfits = o.data || [];
-    S.worn = S.worn.filter((w) => garm(w.id));
-    [S.gu, S.au] = await Promise.all([
+    S.sel = S.sel.filter((id) => garm(id));
+    const pr = S.profile;
+    const [gu, au, ou] = await Promise.all([
       firmar("garments", S.garments.flatMap((x) => [x.front_path, x.back_path])),
-      firmar("avatars", [S.profile.avatar_front_path, S.profile.avatar_back_path]),
+      firmar("avatars", [pr.avatar_front_path, pr.avatar_back_path, pr.base_front_path, pr.base_back_path]),
+      firmar("avatars", S.outfits.map((x) => x.preview_path)),
     ]);
-    pintar();
+    S.gu = gu; S.au = au; S.ou = ou; pintar();
   }
 
   // ---- Vistas ----
+  const baseUrl = (lado) => S.au[S.profile["base_" + lado + "_path"]] || S.au[S.profile["avatar_" + lado + "_path"]];
   function pYo() {
-    const tile = (l, t) => { const u = S.au[S.profile["avatar_" + l + "_path"]];
-      return `<label class="tile"><span class="img">${u ? `<img src="${u}" alt="Foto de ${t.toLowerCase()}">` : "<em>Sin foto</em>"}</span><b>${t}</b><small class="suave">${u ? "Toca para cambiarla" : "Toca para subirla"}</small><input type="file" accept="image/*" data-av="${l}" hidden></label>`; };
+    const tile = (l, t) => { const u = baseUrl(l), tiene = !!S.profile["avatar_" + l + "_path"], traje = !!S.profile["base_" + l + "_path"];
+      return `<div class="tile"><label><span class="img">${u ? `<img src="${u}" alt="Foto de ${t.toLowerCase()}">` : "<em>Sin foto</em>"}</span><b>${t}</b><small class="suave">${tiene ? "Toca para cambiarla" : "Toca para subirla"}</small><input type="file" accept="image/*" data-av="${l}" hidden></label>${tiene && !traje ? `<button class="btn sec" data-act="traje" data-l="${l}">Poner traje gris</button>` : ""}</div>`; };
     $("v-yo").innerHTML = `<h1>Yo</h1><p class="suave">${esc(S.profile.username)}</p>
-      <p class="suave">Sube una foto de cuerpo completo de frente y otra de espalda: de pie, fondo liso y buena luz. El fondo se quita solo.</p>
+      <p class="suave">Sube una foto de cuerpo completo de frente y otra de espalda: de pie, brazos algo separados, buena luz. La IA te quita la ropa que llevas y te deja un traje gris (conserva cara y manos).</p>
       <div class="dos">${tile("front", "Frente")}${tile("back", "Espalda")}</div>
+      <div class="hf"><b>Token de Hugging Face (opcional)</b>
+        <p class="suave" style="font-size:.85rem">Da más cupo gratuito de GPU. Créalo gratis en huggingface.co/settings/tokens (tipo Read) y pégalo aquí; se guarda solo en este teléfono.</p>
+        <input id="hftok" type="password" placeholder="hf_..." value="${esc(localStorage.getItem("hf_token") || "")}" autocomplete="off"></div>
       <button class="btn sec" data-act="salir">Cerrar sesión</button>`;
   }
   function pArmario() {
     const form = S.form ? `<form id="fg"><input name="n" placeholder="Nombre (ej. Polera negra oversize)" required>
-      <select name="c" aria-label="Categoría">${Object.entries(CAT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
-      <label>Foto de frente<input type="file" name="f" accept="image/*" required></label>
+      <select name="c" aria-label="Categoría">${PROBABLES.map((k) => `<option value="${k}">${CAT[k]}</option>`).join("")}</select>
+      <label>Foto de frente (la prenda sola, sobre una superficie lisa)<input type="file" name="f" accept="image/*" required></label>
       <label>Foto de espalda (opcional)<input type="file" name="b" accept="image/*"></label>
       <button class="btn" id="gbtn">Guardar prenda</button><button class="btn sec" type="button" data-act="cancelarG">Cancelar</button></form>`
       : `<button class="btn" data-act="nuevaG">Añadir prenda</button>`;
     const cards = S.garments.map((g) => `<div class="card"><span class="img"><img src="${S.gu[g.front_path] || ""}" alt=""></span><b>${esc(g.name)}</b><small class="suave">${CAT[g.category]}${g.back_path ? "" : " · sin espalda"}</small><button class="btn sec" data-act="borrarG" data-id="${g.id}">Borrar</button></div>`).join("");
     $("v-armario").innerHTML = `<h1>Armario</h1>${S.garments.length || S.form ? "" : '<p class="suave">Aún no tienes prendas. Añade la primera para empezar.</p>'}${form}<div class="grid">${cards}</div>`;
   }
-  function estilo(it) {
-    const d = DEF[garm(it.id).category];
-    return `left:${it.x}%;top:${it.y}%;width:${d.w}%;z-index:${d.z};transform:translate(-50%,-50%) scale(${it.s})`;
-  }
   function pProbador() {
-    const base = S.au[S.profile["avatar_" + S.side + "_path"]];
-    const capas = S.worn.map((it) => { const g = garm(it.id); if (!g) return "";
-      const u = S.gu[S.side === "back" ? g.back_path : g.front_path]; if (!u) return "";
-      return `<img class="g${it.id === S.active ? " act" : ""}" data-id="${it.id}" src="${u}" alt="${esc(g.name)}" style="${estilo(it)}">`; }).join("");
-    const sinEspalda = S.side === "back" && S.worn.some((it) => !garm(it.id)?.back_path);
-    const chips = S.garments.map((g) => `<button class="chip${S.worn.some((w) => w.id === g.id) ? " on" : ""}" data-act="usar" data-id="${g.id}"><img src="${S.gu[g.front_path] || ""}" alt=""><small>${esc(g.name)}</small></button>`).join("");
-    const act = S.worn.find((w) => w.id === S.active);
+    const r = S.res[S.side], img = r?.url || baseUrl(S.side);
+    const chips = S.garments.filter((g) => PROBABLES.includes(g.category)).map((g) => `<button class="chip${S.sel.includes(g.id) ? " on" : ""}" data-act="usar" data-id="${g.id}"><img src="${S.gu[g.front_path] || ""}" alt=""><small>${esc(g.name)}</small></button>`).join("");
     $("v-probador").innerHTML = `<h1>Probador</h1>
       <div class="seg"><button data-act="lado" data-side="front" aria-pressed="${S.side === "front"}">Frente</button><button data-act="lado" data-side="back" aria-pressed="${S.side === "back"}">Espalda</button></div>
-      <div id="stage">${base ? `<img class="base" src="${base}" alt="Tu gemelo">${capas}` : `<div class="vacio">Sube tu foto de ${S.side === "front" ? "frente" : "espalda"} en la pestaña Yo.</div>`}</div>
-      ${sinEspalda ? '<p class="suave" style="font-size:.85rem">Alguna prenda no tiene foto de espalda y no se muestra.</p>' : ""}
-      <div class="ctrl"><input type="range" id="esc" min="40" max="250" value="${Math.round((act?.s || 1) * 100)}" aria-label="Tamaño de la prenda" ${act ? "" : "disabled"}>
-        <button class="btn sec" data-act="quitar" ${act ? "" : "disabled"}>Quitar</button>
-        <button class="btn" data-act="guardar" ${S.worn.length ? "" : "disabled"}>Guardar outfit</button></div>
-      <p class="suave" style="font-size:.85rem">Arrastra para mover la prenda seleccionada y pellizca para cambiar su tamaño.</p>
+      <div id="stage">${img ? `<img class="base" src="${img}" alt="Tu gemelo">` : `<div class="vacio">Sube tu foto de ${S.side === "front" ? "frente" : "espalda"} en la pestaña Yo.</div>`}</div>
+      <div class="ctrl"><button class="btn" data-act="vestir" ${S.sel.length && img ? "" : "disabled"}>Vestir</button>
+        <button class="btn sec" data-act="limpiar" ${S.sel.length ? "" : "disabled"}>Quitar todo</button>
+        <button class="btn sec" data-act="guardar" ${r?.blob ? "" : "disabled"}>Guardar outfit</button></div>
+      <p class="suave" style="font-size:.85rem">Elige prendas (una por categoría) y pulsa Vestir. Cada prenda tarda entre 1 y 2 minutos en el servidor gratuito.</p>
       <div class="tira">${chips || '<span class="suave">Añade prendas en el Armario.</span>'}</div>`;
-    gestos();
   }
   function pOutfits() {
     $("v-outfits").innerHTML = `<h1>Outfits</h1>` + (S.outfits.length
-      ? `<ul class="lista">${S.outfits.map((o) => `<li><b>${esc(o.name)}</b><button class="btn" data-act="probarO" data-id="${o.id}">Probar</button><button class="btn sec" data-act="borrarO" data-id="${o.id}">Borrar</button></li>`).join("")}</ul>`
+      ? `<div class="grid">${S.outfits.map((o) => `<div class="card"><span class="img"><img src="${S.ou[o.preview_path] || ""}" alt=""></span><b>${esc(o.name)}</b><button class="btn" data-act="probarO" data-id="${o.id}">Usar</button><button class="btn sec" data-act="borrarO" data-id="${o.id}">Borrar</button></div>`).join("")}</div>`
       : '<p class="suave">Cuando guardes una combinación desde el Probador, aparecerá aquí.</p>');
   }
   const pintar = () => { pYo(); pArmario(); pProbador(); pOutfits(); };
 
-  // ---- Gestos del probador: arrastrar y pellizcar sobre la prenda activa ----
-  function gestos() {
-    const st = $("stage"); if (!st) return;
-    const ptr = new Map(); let ult = 0;
-    const dist = () => { const [a, b] = [...ptr.values()]; return Math.hypot(a[0] - b[0], a[1] - b[1]); };
-    st.onpointerdown = (e) => { st.setPointerCapture(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]); if (ptr.size === 2) ult = dist(); };
-    st.onpointermove = (e) => {
-      const it = S.worn.find((w) => w.id === S.active); if (!it || !ptr.has(e.pointerId)) return;
-      const prev = ptr.get(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]);
-      if (ptr.size === 1) { const r = st.getBoundingClientRect(); it.x += ((e.clientX - prev[0]) / r.width) * 100; it.y += ((e.clientY - prev[1]) / r.height) * 100; }
-      else if (ptr.size === 2) { const d = dist(); if (ult) it.s = Math.min(2.5, Math.max(0.4, it.s * (d / ult))); ult = d; $("esc").value = Math.round(it.s * 100); }
-      const img = st.querySelector(`img.g[data-id="${it.id}"]`); if (img) img.style.cssText = estilo(it);
-    };
-    st.onpointerup = st.onpointercancel = (e) => ptr.delete(e.pointerId);
-  }
-
   // ---- Acciones ----
-  async function subirAvatar(lado, file) {
-    aviso("Quitando el fondo… la primera vez descarga el modelo (~40 MB).", 0);
+  async function ocupado(fn) {
+    if (S.busy) return aviso("Espera a que termine el proceso actual.");
+    S.busy = true; try { await fn(); } finally { S.busy = false; }
+  }
+  async function ponerTraje(lado, foto) {
+    aviso("Vistiéndote con el traje gris… puede tardar 1–2 min la primera vez.", 0);
     try {
-      const blob = await preparar(file), campo = "avatar_" + lado + "_path", viejo = S.profile[campo];
-      const path = `${uid()}/${lado}-${Date.now()}.png`;
-      await subir("avatars", path, blob);
-      const { error } = await sb.from("profiles").update({ [campo]: path }).eq("id", uid());
-      if (error) throw error;
+      const out = await vestir(foto, await trajeGris(), "overall");
+      const campo = "base_" + lado + "_path", viejo = S.profile[campo], path = `${uid()}/${lado}-traje-${Date.now()}.jpg`;
+      await subir("avatars", path, out);
+      const { error } = await sb.from("profiles").update({ [campo]: path }).eq("id", uid()); if (error) throw error;
       if (viejo) sb.storage.from("avatars").remove([viejo]);
-      await cargar(); aviso("Foto guardada.");
-    } catch (e) { aviso(e.message || "No se pudo guardar la foto.", 6000); }
+      S.res[lado] = null; await cargar(); aviso("Listo: ya tienes tu gemelo con traje gris.");
+    } catch (e) { console.error(e); await cargar(); aviso("Tu foto se guardó, pero " + errIA(e), 8000); }
+  }
+  async function subirAvatar(lado, file) {
+    await ocupado(async () => {
+      aviso("Guardando tu foto…", 0); let foto;
+      try {
+        foto = await comoJpeg(file);
+        const campo = "avatar_" + lado + "_path", cb = "base_" + lado + "_path", path = `${uid()}/${lado}-${Date.now()}.jpg`;
+        const viejos = [S.profile[campo], S.profile[cb]].filter(Boolean);
+        await subir("avatars", path, foto);
+        const { error } = await sb.from("profiles").update({ [campo]: path, [cb]: null }).eq("id", uid()); if (error) throw error;
+        if (viejos.length) sb.storage.from("avatars").remove(viejos);
+        S.res[lado] = null; await cargar();
+      } catch (e) { return aviso(e.message || "No se pudo guardar la foto.", 6000); }
+      await ponerTraje(lado, foto);
+    });
   }
   async function guardarPrenda(f) {
-    const fd = new FormData(f), back = fd.get("b"); $("gbtn").disabled = true;
-    aviso("Procesando fotos… puede tardar un poco.", 0);
+    await ocupado(async () => {
+      const fd = new FormData(f), back = fd.get("b"); $("gbtn").disabled = true;
+      aviso("Procesando fotos de la prenda…", 0);
+      try {
+        const id = crypto.randomUUID(), fp = `${uid()}/${id}-front.png`; let bp = null;
+        await subir("garments", fp, await prepararPrenda(fd.get("f")));
+        if (back && back.size) { bp = `${uid()}/${id}-back.png`; await subir("garments", bp, await prepararPrenda(back)); }
+        const { error } = await sb.from("garments").insert({ id, name: fd.get("n").trim(), category: fd.get("c"), front_path: fp, back_path: bp });
+        if (error) throw error;
+        S.form = false; await cargar(); aviso("Prenda guardada.");
+      } catch (e) { $("gbtn") && ($("gbtn").disabled = false); aviso(e.message || "No se pudo guardar la prenda.", 6000); }
+    });
+  }
+  async function vestirSel() {
+    const lado = S.side, gs = ORDEN.map((c) => S.sel.map(garm).find((g) => g.category === c)).filter(Boolean);
+    if (!gs.length) return;
+    const ruta = (g) => (lado === "back" ? g.back_path : g.front_path), falta = gs.find((g) => !ruta(g));
+    if (falta) return aviso(`"${falta.name}" no tiene foto de espalda.`, 5000);
     try {
-      const id = crypto.randomUUID(), fp = `${uid()}/${id}-front.png`; let bp = null;
-      await subir("garments", fp, await preparar(fd.get("f")));
-      if (back && back.size) { bp = `${uid()}/${id}-back.png`; await subir("garments", bp, await preparar(back)); }
-      const { error } = await sb.from("garments").insert({ id, name: fd.get("n").trim(), category: fd.get("c"), front_path: fp, back_path: bp });
-      if (error) throw error;
-      S.form = false; await cargar(); aviso("Prenda guardada.");
-    } catch (e) { $("gbtn") && ($("gbtn").disabled = false); aviso(e.message || "No se pudo guardar la prenda.", 6000); }
+      let persona = await comoJpeg(await (await fetch(baseUrl(lado))).blob());
+      for (let i = 0; i < gs.length; i++) {
+        aviso(`Vistiendo ${i + 1} de ${gs.length}: ${gs[i].name}… (1–2 min)`, 0);
+        const prenda = await comoJpeg(await (await fetch(S.gu[ruta(gs[i])])).blob());
+        persona = await vestir(persona, prenda, TIPO[gs[i].category]);
+      }
+      S.res[lado] = { blob: persona, url: URL.createObjectURL(persona) }; pProbador(); aviso("Listo.");
+    } catch (e) { console.error(e); aviso(errIA(e), 8000); }
   }
   const acts = {
     salir: () => sb.auth.signOut(),
@@ -285,17 +341,27 @@
     cancelarG: () => { S.form = false; pArmario(); },
     lado: (b) => { S.side = b.dataset.side; pProbador(); },
     usar: (b) => {
-      const g = garm(b.dataset.id); let it = S.worn.find((w) => w.id === g.id);
-      if (!it) { S.worn = S.worn.filter((w) => garm(w.id).category !== g.category); const d = DEF[g.category]; it = { id: g.id, x: d.x, y: d.y, s: 1 }; S.worn.push(it); }
-      S.active = g.id; pProbador();
+      const g = garm(b.dataset.id);
+      S.sel = S.sel.includes(g.id) ? S.sel.filter((x) => x !== g.id) : [...S.sel.filter((x) => garm(x).category !== g.category), g.id];
+      S.res = {}; pProbador();
     },
-    quitar: () => { S.worn = S.worn.filter((w) => w.id !== S.active); S.active = null; pProbador(); },
+    limpiar: () => { S.sel = []; S.res = {}; pProbador(); },
+    vestir: () => ocupado(vestirSel),
+    traje: (b) => ocupado(async () => {
+      const l = b.dataset.l;
+      try { const blob = await (await fetch(S.au[S.profile["avatar_" + l + "_path"]])).blob(); await ponerTraje(l, await comoJpeg(blob)); }
+      catch (e) { aviso(errIA(e), 6000); }
+    }),
     guardar: async () => {
+      const r = S.res[S.side]; if (!r?.blob) return;
       const name = prompt("Nombre del outfit"); if (!name || !name.trim()) return;
-      const items = S.worn.map((w) => ({ garment_id: w.id, x: +w.x.toFixed(1), y: +w.y.toFixed(1), scale: +w.s.toFixed(2) }));
-      const { error } = await sb.from("outfits").insert({ name: name.trim(), items });
-      if (error) return aviso("No se pudo guardar el outfit.", 4000);
-      await cargar(); aviso("Outfit guardado.");
+      aviso("Guardando outfit…", 0);
+      try {
+        const path = `${uid()}/outfit-${Date.now()}-${S.side}.jpg`; await subir("avatars", path, r.blob);
+        const { error } = await sb.from("outfits").insert({ name: name.trim(), items: S.sel.map((id) => ({ garment_id: id, side: S.side })), preview_path: path });
+        if (error) throw error;
+        await cargar(); aviso("Outfit guardado.");
+      } catch (e) { aviso("No se pudo guardar el outfit.", 4000); }
     },
     borrarG: async (b) => {
       const g = garm(b.dataset.id); if (!g || !confirm(`¿Borrar "${g.name}"?`)) return;
@@ -304,19 +370,22 @@
       if (error) return aviso("No se pudo borrar.", 4000);
       await cargar();
     },
-    borrarO: async (b) => { if (!confirm("¿Borrar este outfit?")) return; await sb.from("outfits").delete().eq("id", b.dataset.id); await cargar(); },
+    borrarO: async (b) => {
+      const o = S.outfits.find((x) => x.id === b.dataset.id); if (!o || !confirm("¿Borrar este outfit?")) return;
+      if (o.preview_path) await sb.storage.from("avatars").remove([o.preview_path]);
+      await sb.from("outfits").delete().eq("id", o.id); await cargar();
+    },
     probarO: (b) => {
       const o = S.outfits.find((x) => x.id === b.dataset.id); if (!o) return;
-      S.worn = (o.items || []).filter((i) => garm(i.garment_id)).map((i) => ({ id: i.garment_id, x: i.x, y: i.y, s: i.scale }));
-      S.active = S.worn[0]?.id || null; pProbador(); ir("probador");
+      const lado = o.items?.[0]?.side || "front";
+      S.sel = (o.items || []).map((i) => i.garment_id).filter((id) => garm(id));
+      S.side = lado; S.res = { [lado]: { url: S.ou[o.preview_path] } }; pProbador(); ir("probador");
     },
   };
   document.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b) acts[b.dataset.act]?.(b); });
   document.addEventListener("change", (e) => { const t = e.target; if (t.dataset?.av && t.files[0]) subirAvatar(t.dataset.av, t.files[0]); });
   document.addEventListener("input", (e) => {
-    if (e.target.id !== "esc") return;
-    const it = S.worn.find((w) => w.id === S.active); if (!it) return;
-    it.s = e.target.value / 100; const img = $("stage").querySelector(`img.g[data-id="${it.id}"]`); if (img) img.style.cssText = estilo(it);
+    if (e.target.id === "hftok") { const v = e.target.value.trim(); v ? localStorage.setItem("hf_token", v) : localStorage.removeItem("hf_token"); }
   });
   document.addEventListener("submit", (e) => { if (e.target.id === "fg") { e.preventDefault(); guardarPrenda(e.target); } });
 
@@ -328,23 +397,17 @@
     history.replaceState(null, "", "#" + v);
   }
   document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => ir(b.dataset.v)));
-
   function mostrar(sesion) {
-    $("login").hidden = !!sesion;
-    $("app").hidden = !sesion;
-    S.user = sesion?.user || null;
-    if (sesion) {
-      ir(location.hash.slice(1) || "probador");
-      if (S.para !== S.user.id) { S.para = S.user.id; setTimeout(cargar, 0); }
-    } else { S.para = null; S.worn = []; S.active = null; }
+    $("login").hidden = !!sesion; $("app").hidden = !sesion; S.user = sesion?.user || null;
+    if (sesion) { ir(location.hash.slice(1) || "probador"); if (S.para !== S.user.id) { S.para = S.user.id; setTimeout(cargar, 0); } }
+    else { S.para = null; S.sel = []; S.res = {}; }
   }
 
   // ---- Login / registro ----
   let modo = "entrar";
   $("alternar").addEventListener("click", () => {
     modo = modo === "entrar" ? "crear" : "entrar";
-    $("username").hidden = modo === "entrar";
-    $("username").required = modo === "crear";
+    $("username").hidden = modo === "entrar"; $("username").required = modo === "crear";
     $("password").autocomplete = modo === "entrar" ? "current-password" : "new-password";
     $("enviar").textContent = modo === "entrar" ? "Entrar" : "Crear cuenta";
     $("alternar").textContent = modo === "entrar" ? "No tengo cuenta, crear una" : "Ya tengo cuenta, entrar";
@@ -352,8 +415,7 @@
   });
   $("form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const msg = $("msg"), btn = $("enviar");
-    msg.className = ""; msg.textContent = ""; btn.disabled = true;
+    const msg = $("msg"), btn = $("enviar"); msg.className = ""; msg.textContent = ""; btn.disabled = true;
     const email = $("email").value.trim(), password = $("password").value;
     if (modo === "entrar") {
       const { error } = await sb.auth.signInWithPassword({ email, password });
@@ -365,8 +427,6 @@
     }
     btn.disabled = false;
   });
-
-  // ---- Sesión ----
   sb.auth.onAuthStateChange((_evento, sesion) => mostrar(sesion));
   sb.auth.getSession().then(({ data }) => mostrar(data.session));
 </script>
