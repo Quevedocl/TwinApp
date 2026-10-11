@@ -3,97 +3,192 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#4B3FE0">
+<meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>TwinApp</title>
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <style>
-  :root { --fondo:#F3F2F7; --tinta:#1E1B3A; --twin:#4B3FE0; --menta:#BFEBD7; --suave:#6E6A8C; }
+  /* Dirección visual: taller de sastrería. Cinta métrica amarilla + tinta + tela gris.
+     La cinta es el elemento protagonista (regla del probador, cabecera del login, barra de carga). */
+  :root {
+    --tela:#E6E9EA;      /* fondo: tela gris frío */
+    --papel:#F6F7F7;     /* superficies */
+    --tinta:#101418;
+    --suave:#5C656D;
+    --cinta:#F5C518;     /* amarillo cinta métrica */
+    --cinta-osc:#D9A900;
+    --error:#C23B2B;
+    --borde:rgba(16,20,24,.14);
+    --r:14px;
+  }
   * { box-sizing:border-box; margin:0; -webkit-tap-highlight-color:transparent; }
   html,body { height:100%; }
-  body { font-family:"Bricolage Grotesque",system-ui,sans-serif; background:var(--fondo); color:var(--tinta); }
-  :focus-visible { outline:2px solid var(--twin); outline-offset:2px; }
+  body { font-family:"Archivo",system-ui,sans-serif; font-stretch:100%; background:var(--tela); color:var(--tinta); line-height:1.45; -webkit-font-smoothing:antialiased; }
+  :focus-visible { outline:3px solid var(--tinta); outline-offset:2px; border-radius:6px; }
   [hidden] { display:none !important; }
-  .marca { font-size:3rem; font-weight:700; letter-spacing:-.03em; }
-  .marca span { color:var(--twin); }
   .suave { color:var(--suave); }
-  h1 { font-size:1.9rem; letter-spacing:-.02em; }
+  h1 { font-size:2.1rem; font-weight:800; font-stretch:118%; letter-spacing:-.025em; line-height:1.05; }
+  h2 { font-size:1rem; font-weight:700; }
+  small { font-size:.78rem; }
 
-  /* Login */
-  #login { max-width:28rem; min-height:100dvh; margin:0 auto; padding:2.5rem 1.5rem; display:flex; flex-direction:column; justify-content:center; }
-  #login form { margin-top:2.5rem; display:grid; gap:.75rem; }
-  input { width:100%; font:inherit; font-size:1rem; padding:.85rem 1rem; border:1px solid rgba(30,27,58,.15); border-radius:.85rem; background:#fff; color:var(--tinta); }
-  input:focus { border-color:var(--twin); outline:none; }
-  .btn { font:inherit; font-weight:600; font-size:1rem; padding:.85rem 1rem; border:0; border-radius:.85rem; background:var(--twin); color:#fff; cursor:pointer; }
-  .btn:active { transform:scale(.98); }
-  .btn:disabled { opacity:.6; }
-  .btn.sec { background:transparent; color:var(--tinta); border:1px solid rgba(30,27,58,.2); font-weight:500; font-size:.9rem; padding:.6rem 1rem; }
-  .link { background:none; border:0; font:inherit; font-size:.9rem; color:var(--suave); text-decoration:underline; margin-top:1.5rem; cursor:pointer; align-self:flex-start; }
-  #msg { font-size:.9rem; color:#c0392b; }
-  #msg.ok { color:var(--twin); }
+  /* ---- Cinta métrica (reutilizable) ---- */
+  .cinta-h { height:26px; background:
+      linear-gradient(90deg,var(--tinta) 0 1px,transparent 1px) 0 0/8px 7px repeat-x,
+      linear-gradient(90deg,var(--tinta) 0 1.5px,transparent 1.5px) 0 0/40px 14px repeat-x,
+      var(--cinta); }
+  .cinta-v { background:
+      linear-gradient(180deg,var(--tinta) 0 1px,transparent 1px) 0 0/7px 8px repeat-y,
+      linear-gradient(180deg,var(--tinta) 0 1.5px,transparent 1.5px) 0 0/14px 40px repeat-y,
+      var(--cinta); }
 
-  /* App */
-  #app { max-width:28rem; margin:0 auto; min-height:100dvh; padding-bottom:calc(5rem + env(safe-area-inset-bottom,0px)); }
-  .vista { padding:2.5rem 1.5rem 0; }
-  .vista p { margin-top:.75rem; }
-  .vista .btn { margin-top:2rem; }
-  nav { position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,.95); backdrop-filter:blur(8px); border-top:1px solid rgba(30,27,58,.1); padding-bottom:env(safe-area-inset-bottom,0px); }
-  nav ul { list-style:none; padding:0; margin:0 auto; max-width:28rem; display:grid; grid-template-columns:repeat(4,1fr); }
-  nav button { width:100%; background:none; border:0; font:inherit; font-size:.75rem; color:var(--suave); padding:.7rem 0; display:flex; flex-direction:column; align-items:center; gap:.25rem; cursor:pointer; }
+  /* ---- Botones y campos ---- */
+  input,select { width:100%; font:inherit; font-size:1rem; padding:.85rem 1rem; border:1.5px solid var(--borde); border-radius:var(--r); background:var(--papel); color:var(--tinta); }
+  input:focus,select:focus { border-color:var(--tinta); outline:none; }
+  input::placeholder { color:#8a929a; }
+  .btn { font:inherit; font-weight:700; font-size:1rem; padding:.9rem 1.1rem; border:0; border-radius:var(--r); background:var(--tinta); color:#fff; cursor:pointer; transition:transform .12s, background .12s; }
+  .btn:active { transform:scale(.97); }
+  .btn:disabled { opacity:.35; cursor:not-allowed; transform:none; }
+  .btn.cinta { background:var(--cinta); color:var(--tinta); }
+  .btn.cinta:active { background:var(--cinta-osc); }
+  .btn.sec { background:transparent; color:var(--tinta); border:1.5px solid var(--borde); font-weight:600; }
+  .btn.peq { padding:.55rem .9rem; font-size:.88rem; }
+  .btn.ancho { width:100%; }
+  .ico { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .btn .ico { vertical-align:-4px; margin-right:.35rem; }
+
+  /* ---- Login ---- */
+  #login { max-width:28rem; min-height:100dvh; margin:0 auto; display:flex; flex-direction:column; }
+  #login .cinta-h { margin-top:max(1.2rem, env(safe-area-inset-top,0px)); border-radius:3px; margin-inline:1.5rem; }
+  #login .cuerpo { flex:1; display:flex; flex-direction:column; justify-content:center; padding:2rem 1.5rem 2.5rem; }
+  .marca { font-size:3.7rem; font-weight:900; font-stretch:125%; letter-spacing:-.045em; line-height:1; text-shadow:.055em .055em 0 var(--cinta); }
+  .lema { margin-top:1.1rem; font-size:1.1rem; max-width:19rem; }
+  #login form { margin-top:2.25rem; display:grid; gap:.7rem; }
+  .link { background:none; border:0; font:inherit; font-size:.95rem; font-weight:600; color:var(--tinta); text-decoration:underline; text-underline-offset:3px; margin-top:1.4rem; cursor:pointer; align-self:flex-start; padding:.3rem 0; }
+  #msg { font-size:.9rem; color:var(--error); min-height:0; }
+  #msg:empty { display:none; }
+  #msg.ok { color:#1d6b3a; }
+
+  /* ---- App ---- */
+  #app { max-width:28rem; margin:0 auto; min-height:100dvh; padding-bottom:calc(6.5rem + env(safe-area-inset-bottom,0px)); }
+  .vista { padding:max(1.8rem, env(safe-area-inset-top,0px)) 1.25rem 0; }
+  .cab { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
+  .cab p { font-size:.92rem; }
+  .vista > p.suave { margin-top:.6rem; font-size:.95rem; max-width:34ch; }
+
+  nav { position:fixed; left:0; right:0; bottom:0; padding:0 .8rem calc(.8rem + env(safe-area-inset-bottom,0px)); pointer-events:none; z-index:10; }
+  nav ul { pointer-events:auto; list-style:none; padding:.35rem; margin:0 auto; max-width:26rem; display:grid; grid-template-columns:repeat(4,1fr); gap:.2rem; background:var(--tinta); border-radius:22px; box-shadow:0 10px 30px -8px rgba(16,20,24,.5); }
+  nav button { width:100%; background:none; border:0; font:inherit; font-size:.72rem; font-weight:600; color:#aab1b8; padding:.55rem 0 .5rem; border-radius:17px; display:flex; flex-direction:column; align-items:center; gap:.2rem; cursor:pointer; transition:background .15s, color .15s; }
   nav button svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-  nav button[aria-current="page"] { color:var(--twin); font-weight:600; }
-  nav button[aria-current="page"] svg { stroke-width:2.4; }
-  #toast{position:fixed;left:1rem;right:1rem;bottom:calc(5.2rem + env(safe-area-inset-bottom,0px));max-width:26rem;margin:0 auto;background:var(--tinta);color:#fff;padding:.75rem 1rem;border-radius:.85rem;font-size:.9rem;z-index:20}
-  .dos,.grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:1.25rem}
-  .tile,.card{display:flex;flex-direction:column;gap:.4rem;background:#fff;border-radius:1rem;padding:.6rem;cursor:pointer}
-  .card{cursor:default}
-  .img{display:grid;place-items:center;aspect-ratio:3/4;background:var(--fondo);border-radius:.7rem;overflow:hidden}
-  .img img{width:100%;height:100%;object-fit:contain}
-  .img em{color:var(--suave);font-size:.85rem}
-  .seg{display:grid;grid-template-columns:1fr 1fr;background:#fff;border-radius:.85rem;padding:.25rem;margin-top:1rem}
-  .seg button{border:0;background:none;font:inherit;padding:.55rem;border-radius:.65rem;color:var(--suave);cursor:pointer}
-  .seg button[aria-pressed="true"]{background:var(--twin);color:#fff;font-weight:600}
-  #stage{position:relative;aspect-ratio:3/5;margin-top:.75rem;background:#fff;border-radius:1rem;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
-  #stage .base{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
-  #stage .vacio{position:absolute;inset:0;display:grid;place-items:center;padding:1.5rem;text-align:center;color:var(--suave)}
-  #stage .g{position:absolute;pointer-events:none;-webkit-user-drag:none}
-  #stage .g.act{filter:drop-shadow(0 0 3px var(--twin))}
-  .ctrl{display:flex;gap:.5rem;align-items:center;margin-top:.75rem}
-  .ctrl input[type=range]{flex:1;padding:0;border:0;background:none}
-  .tira{display:flex;gap:.5rem;overflow-x:auto;margin-top:.75rem;padding-bottom:.25rem}
-  .chip{flex:0 0 4.4rem;border:2px solid transparent;border-radius:.8rem;background:#fff;padding:.2rem;cursor:pointer;font:inherit}
-  .chip.on{border-color:var(--twin)}
-  .chip img{width:100%;aspect-ratio:1;object-fit:contain;display:block}
-  .chip small{display:block;font-size:.65rem;color:var(--suave);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-  .lista{list-style:none;padding:0;margin-top:1.25rem;display:grid;gap:.6rem}
-  .lista li{background:#fff;border-radius:1rem;padding:.8rem 1rem;display:flex;gap:.5rem;align-items:center}
-  .lista b{flex:1}
-  #fg{display:grid;gap:.75rem;margin-top:1.25rem;background:#fff;border-radius:1rem;padding:1rem}
-  #fg label{display:grid;gap:.3rem;font-size:.85rem;color:var(--suave)}
-  select{font:inherit;padding:.85rem 1rem;border:1px solid rgba(30,27,58,.15);border-radius:.85rem;background:#fff}
-  .vista .ctrl .btn,.vista .card .btn,.vista .lista .btn,.vista #fg .btn,.vista .arriba{margin-top:0}
-  .ctrl .btn,.card .btn,.lista .btn{padding:.5rem .8rem;font-size:.85rem}
-  .ctrl{flex-wrap:wrap}
-  .tile label{display:flex;flex-direction:column;gap:.4rem;cursor:pointer}
-  .tile .btn{margin-top:.25rem;padding:.5rem .8rem;font-size:.85rem}
-  .hf{margin-top:1.5rem;display:grid;gap:.5rem}
+  nav button[aria-current="page"] { background:var(--cinta); color:var(--tinta); }
+  nav button:focus-visible { outline-color:#fff; }
+
+  #toast { position:fixed; left:1rem; right:1rem; bottom:calc(6.4rem + env(safe-area-inset-bottom,0px)); max-width:26rem; margin:0 auto; background:var(--papel); color:var(--tinta); border:1.5px solid var(--tinta); padding:.75rem 1rem; border-radius:var(--r); font-size:.9rem; font-weight:500; z-index:20; display:flex; gap:.7rem; align-items:center; animation:sube .2s ease-out; }
+  #toast.carga::before { content:""; width:16px; height:16px; flex:none; border-radius:50%; border:2.5px solid var(--borde); border-top-color:var(--tinta); animation:gira .8s linear infinite; }
+  @keyframes sube { from { transform:translateY(8px); opacity:0 } }
+  @keyframes gira { to { transform:rotate(360deg) } }
+
+  /* ---- Piezas comunes ---- */
+  .img { display:grid; place-items:center; aspect-ratio:3/4; background:var(--tela); border-radius:10px; overflow:hidden; }
+  .img img { width:100%; height:100%; object-fit:contain; }
+  .img em { color:var(--suave); font-size:.85rem; font-style:normal; text-align:center; padding:0 .5rem; }
+  .grid,.dos { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; margin-top:1.1rem; }
+  .card,.tile { display:flex; flex-direction:column; gap:.35rem; background:var(--papel); border:1px solid var(--borde); border-radius:var(--r); padding:.5rem; }
+  .card b,.tile b { font-size:.92rem; line-height:1.25; padding:0 .2rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .card small,.tile small { padding:0 .2rem; }
+  .card .fila { display:flex; gap:.4rem; margin-top:.2rem; }
+  .card .fila .btn { flex:1; }
+  .btn.icon { flex:none; width:2.4rem; padding:0; display:grid; place-items:center; height:2.4rem; }
+  .btn.icon .ico { margin:0; }
+  .vacio-b { margin-top:1.5rem; padding:2rem 1.25rem; border:1.5px dashed rgba(16,20,24,.28); border-radius:var(--r); text-align:center; display:grid; gap:.8rem; justify-items:center; }
+  .vacio-b p { max-width:26ch; }
+
+  /* ---- Probador ---- */
+  .seg { display:grid; grid-template-columns:1fr 1fr; background:rgba(16,20,24,.08); border-radius:var(--r); padding:.25rem; margin-top:1.1rem; }
+  .seg button { border:0; background:none; font:inherit; font-weight:600; padding:.6rem; border-radius:11px; color:var(--suave); cursor:pointer; transition:background .15s; }
+  .seg button[aria-pressed="true"] { background:var(--papel); color:var(--tinta); box-shadow:0 1px 3px rgba(16,20,24,.18); }
+  .marco { display:grid; grid-template-columns:26px 1fr; margin-top:.8rem; border-radius:var(--r); overflow:hidden; border:1.5px solid var(--tinta); background:var(--papel); }
+  .marco .cinta-v { width:26px; }
+  #stage { position:relative; aspect-ratio:3/5; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none; background:
+      radial-gradient(circle at 1px 1px, rgba(16,20,24,.1) 1px, transparent 1.3px) 0 0/16px 16px, #fff; }
+  #stage .base { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  #stage .vacio { position:absolute; inset:0; display:grid; place-content:center; justify-items:center; gap:.9rem; padding:1.5rem; text-align:center; color:var(--suave); }
+  #stage .espera { position:absolute; inset:0; display:grid; place-content:center; justify-items:center; gap:.5rem; background:rgba(246,247,247,.72); backdrop-filter:blur(2px); font-weight:700; text-align:center; padding:1rem; }
+  #stage .espera small { font-weight:500; color:var(--suave); }
+  #stage .espera::after { content:""; position:absolute; left:0; right:0; height:5px; background:var(--cinta); box-shadow:0 0 0 1px var(--tinta); animation:barrido 1.8s ease-in-out infinite alternate; }
+  @keyframes barrido { from { top:4% } to { top:96% } }
+  .ctrl { display:grid; grid-template-columns:1fr auto auto; gap:.5rem; margin-top:.8rem; }
+  .ctrl .btn { padding:.8rem 1rem; }
+  .nota { margin-top:.7rem; font-size:.83rem; color:var(--suave); }
+  .tira-t { display:flex; align-items:baseline; justify-content:space-between; margin-top:1.4rem; }
+  .tira { display:flex; gap:.5rem; overflow-x:auto; margin:.6rem -1.25rem 0; padding:.2rem 1.25rem .5rem; scroll-snap-type:x proximity; scrollbar-width:none; }
+  .tira::-webkit-scrollbar { display:none; }
+  .chip { position:relative; flex:0 0 4.8rem; scroll-snap-align:start; border:2px solid transparent; border-radius:12px; background:var(--papel); padding:.25rem; cursor:pointer; font:inherit; text-align:left; color:inherit; }
+  .chip.on { border-color:var(--tinta); background:var(--cinta); }
+  .chip.on::after { content:""; position:absolute; top:.25rem; right:.25rem; width:18px; height:18px; border-radius:50%; background:var(--tinta) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23F5C518' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E") center/12px no-repeat; }
+  .chip img { width:100%; aspect-ratio:1; object-fit:contain; display:block; background:var(--tela); border-radius:8px; }
+  .chip.on img { background:rgba(255,255,255,.55); }
+  .chip small { display:block; font-size:.68rem; font-weight:600; margin-top:.2rem; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+
+  /* ---- Armario ---- */
+  .filtros { display:flex; gap:.4rem; overflow-x:auto; margin:1.1rem -1.25rem 0; padding:.1rem 1.25rem; scrollbar-width:none; }
+  .filtros::-webkit-scrollbar { display:none; }
+  .filtros button { flex:none; font:inherit; font-size:.85rem; font-weight:600; padding:.45rem .85rem; border-radius:99px; border:1.5px solid var(--borde); background:transparent; color:var(--suave); cursor:pointer; }
+  .filtros button[aria-pressed="true"] { background:var(--tinta); border-color:var(--tinta); color:#fff; }
+  #fg { display:grid; gap:.85rem; margin-top:1.1rem; background:var(--papel); border:1.5px solid var(--tinta); border-radius:var(--r); padding:1rem; }
+  #fg h2 { font-size:1.1rem; font-stretch:112%; font-weight:800; }
+  .duo { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
+  .sube { position:relative; display:grid; place-content:center; justify-items:center; gap:.3rem; aspect-ratio:3/4; border:1.5px dashed rgba(16,20,24,.35); border-radius:12px; background:var(--tela) center/contain no-repeat; text-align:center; font-size:.82rem; font-weight:600; color:var(--suave); cursor:pointer; padding:.5rem; overflow:hidden; }
+  .sube.lleno { border-style:solid; border-color:var(--tinta); color:transparent; }
+  .sube input { position:absolute; inset:0; opacity:0; width:100%; height:100%; padding:0; cursor:pointer; }
+  .sube:focus-within { outline:3px solid var(--tinta); outline-offset:2px; }
+  .sube .ico { width:26px; height:26px; }
+  .sube.lleno .ico, .sube.lleno span { display:none; }
+  .nota-f { font-size:.82rem; color:var(--suave); }
+  #fg .fila-b { display:grid; grid-template-columns:1fr auto; gap:.5rem; }
+
+  /* ---- Yo ---- */
+  .perfil { display:flex; align-items:center; gap:.8rem; margin-top:.9rem; }
+  .perfil .letra { width:2.6rem; height:2.6rem; border-radius:50%; background:var(--cinta); border:1.5px solid var(--tinta); display:grid; place-items:center; font-weight:800; font-stretch:115%; }
+  .tile .btn { margin-top:.2rem; }
+  .tile label { display:flex; flex-direction:column; gap:.35rem; cursor:pointer; }
+  .tile .cambia { display:inline-flex; align-items:center; gap:.3rem; padding:0 .2rem; font-size:.8rem; font-weight:600; color:var(--tinta); }
+  .tile input[type=file] { position:absolute; opacity:0; width:1px; height:1px; }
+  .tile label:focus-within .img { outline:3px solid var(--tinta); outline-offset:2px; }
+  details { margin-top:1.5rem; background:var(--papel); border:1px solid var(--borde); border-radius:var(--r); padding:.9rem 1rem; }
+  details summary { cursor:pointer; font-weight:700; list-style:none; display:flex; justify-content:space-between; align-items:center; }
+  details summary::-webkit-details-marker { display:none; }
+  details summary::after { content:"+"; font-size:1.3rem; font-weight:500; line-height:1; }
+  details[open] summary::after { content:"–"; }
+  details p { margin:.7rem 0; font-size:.87rem; }
+  .salir { margin-top:1.5rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition:none !important; }
+  }
 </style>
 </head>
 <body>
 
 <main id="login" hidden>
-  <div class="marca">Twin<span>App</span></div>
-  <p class="suave" style="margin-top:.75rem">Pruébate tu ropa en tu gemelo digital.</p>
-  <form id="form">
-    <input id="username" placeholder="Nombre de usuario" autocomplete="nickname" hidden>
-    <input id="email" type="email" placeholder="Correo" autocomplete="email" required>
-    <input id="password" type="password" placeholder="Contraseña (mínimo 6 caracteres)" minlength="6" autocomplete="current-password" required>
-    <p id="msg" role="alert"></p>
-    <button class="btn" id="enviar">Entrar</button>
-  </form>
-  <button class="link" id="alternar" type="button">No tengo cuenta, crear una</button>
+  <div class="cinta-h" aria-hidden="true"></div>
+  <div class="cuerpo">
+    <div class="marca">TwinApp</div>
+    <p class="lema">Sube tu foto, guarda tu ropa y pruébatela antes de salir.</p>
+    <form id="form">
+      <input id="username" placeholder="Nombre de usuario" autocomplete="nickname" hidden>
+      <input id="email" type="email" placeholder="Correo" autocomplete="email" required>
+      <input id="password" type="password" placeholder="Contraseña (mínimo 6 caracteres)" minlength="6" autocomplete="current-password" required>
+      <p id="msg" role="alert"></p>
+      <button class="btn cinta" id="enviar">Entrar</button>
+    </form>
+    <button class="link" id="alternar" type="button">No tengo cuenta, crear una</button>
+  </div>
 </main>
 
 <div id="app" hidden>
@@ -131,12 +226,21 @@
   const PROBABLES = ["superior", "inferior", "enterito", "abrigo"];
   const ORDEN = ["inferior", "enterito", "superior", "abrigo"];            // de abajo hacia arriba
   const TIPO = { inferior: "lower", enterito: "overall", superior: "upper", abrigo: "upper" };
-  const S = { user: null, profile: {}, garments: [], outfits: [], gu: {}, au: {}, ou: {}, sel: [], res: {}, side: "front", form: false, para: null, busy: false };
+  const S = { user: null, profile: {}, garments: [], outfits: [], gu: {}, au: {}, ou: {}, sel: [], res: {}, side: "front", form: false, para: null, busy: false, vistiendo: false, filtro: "todas", cargado: false };
   const uid = () => S.user.id;
   const garm = (id) => S.garments.find((g) => g.id === id);
 
+  // Iconos
+  const I = {
+    mas: '<svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    foto: '<svg class="ico" viewBox="0 0 24 24"><path d="M4 8a2 2 0 0 1 2-2h1.5l1.2-2h6.6l1.2 2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    basura: '<svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
+    varita: '<svg class="ico" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
+    guardar: '<svg class="ico" viewBox="0 0 24 24"><path d="M6 3h10l4 4v14H6z"/><path d="M9 3v5h6V3M9 21v-7h8v7"/></svg>',
+  };
+
   function aviso(t, ms = 3000) {
-    const el = $("toast"); el.textContent = t; el.hidden = false;
+    const el = $("toast"); el.textContent = t; el.hidden = false; el.className = ms ? "" : "carga";
     clearTimeout(aviso.t); if (ms) aviso.t = setTimeout(() => (el.hidden = true), ms);
   }
 
@@ -230,48 +334,63 @@
       firmar("avatars", [pr.avatar_front_path, pr.avatar_back_path, pr.base_front_path, pr.base_back_path]),
       firmar("avatars", S.outfits.map((x) => x.preview_path)),
     ]);
-    S.gu = gu; S.au = au; S.ou = ou; pintar();
+    S.gu = gu; S.au = au; S.ou = ou; S.cargado = true; pintar();
   }
 
   // ---- Vistas ----
   const baseUrl = (lado) => S.au[S.profile["base_" + lado + "_path"]] || S.au[S.profile["avatar_" + lado + "_path"]];
   function pYo() {
     const tile = (l, t) => { const u = baseUrl(l), tiene = !!S.profile["avatar_" + l + "_path"], traje = !!S.profile["base_" + l + "_path"];
-      return `<div class="tile"><label><span class="img">${u ? `<img src="${u}" alt="Foto de ${t.toLowerCase()}">` : "<em>Sin foto</em>"}</span><b>${t}</b><small class="suave">${tiene ? "Toca para cambiarla" : "Toca para subirla"}</small><input type="file" accept="image/*" data-av="${l}" hidden></label>${tiene && !traje ? `<button class="btn sec" data-act="traje" data-l="${l}">Poner traje gris</button>` : ""}</div>`; };
-    $("v-yo").innerHTML = `<h1>Yo</h1><p class="suave">${esc(S.profile.username)}</p>
-      <p class="suave">Sube una foto de cuerpo completo de frente y otra de espalda: de pie, brazos algo separados, buena luz. La IA te quita la ropa que llevas y te deja un traje gris (conserva cara y manos).</p>
+      return `<div class="tile"><label><span class="img">${u ? `<img src="${u}" alt="Foto de ${t.toLowerCase()}">` : `<em>${I.foto}<br>Sin foto</em>`}</span><b>${t}</b><span class="cambia">${I.foto}${tiene ? "Cambiar foto" : "Subir foto"}</span><input type="file" accept="image/*" data-av="${l}"></label>${tiene && !traje ? `<button class="btn sec peq" data-act="traje" data-l="${l}">Poner traje gris</button>` : ""}</div>`; };
+    const nombre = S.profile.username || "";
+    $("v-yo").innerHTML = `<div class="cab"><h1>Yo</h1></div>
+      <div class="perfil"><span class="letra" aria-hidden="true">${esc(nombre.charAt(0).toUpperCase() || "·")}</span><b>${esc(nombre)}</b></div>
+      <p class="suave" style="margin-top:1rem;font-size:.92rem">Sube una foto de cuerpo completo de frente y otra de espalda: de pie, brazos algo separados, con buena luz. La IA reemplaza tu ropa por un traje gris y conserva tu cara y tus manos.</p>
       <div class="dos">${tile("front", "Frente")}${tile("back", "Espalda")}</div>
-      <div class="hf"><b>Token de Hugging Face (opcional)</b>
-        <p class="suave" style="font-size:.85rem">Da más cupo gratuito de GPU. Créalo gratis en huggingface.co/settings/tokens (tipo Read) y pégalo aquí; se guarda solo en este teléfono.</p>
-        <input id="hftok" type="password" placeholder="hf_..." value="${esc(localStorage.getItem("hf_token") || "")}" autocomplete="off"></div>
-      <button class="btn sec" data-act="salir">Cerrar sesión</button>`;
+      <details><summary>Más cupo de IA gratis</summary>
+        <p class="suave">Crea un token gratis (tipo Read) en huggingface.co/settings/tokens y pégalo aquí. Se guarda solo en este teléfono.</p>
+        <input id="hftok" type="password" placeholder="hf_..." value="${esc(localStorage.getItem("hf_token") || "")}" autocomplete="off" aria-label="Token de Hugging Face"></details>
+      <button class="btn sec salir ancho" data-act="salir">Cerrar sesión</button>`;
   }
   function pArmario() {
-    const form = S.form ? `<form id="fg"><input name="n" placeholder="Nombre (ej. Polera negra oversize)" required>
+    const lleno = S.garments.length;
+    const cats = ["todas", ...Object.keys(CAT).filter((k) => S.garments.some((g) => g.category === k))];
+    if (!cats.includes(S.filtro)) S.filtro = "todas";
+    const form = S.form ? `<form id="fg"><h2>Nueva prenda</h2>
+      <input name="n" placeholder="Nombre (ej. Polera negra oversize)" required aria-label="Nombre">
       <select name="c" aria-label="Categoría">${PROBABLES.map((k) => `<option value="${k}">${CAT[k]}</option>`).join("")}</select>
-      <label>Foto de frente (la prenda sola, sobre una superficie lisa)<input type="file" name="f" accept="image/*" required></label>
-      <label>Foto de espalda (opcional)<input type="file" name="b" accept="image/*"></label>
-      <button class="btn" id="gbtn">Guardar prenda</button><button class="btn sec" type="button" data-act="cancelarG">Cancelar</button></form>`
-      : `<button class="btn" data-act="nuevaG">Añadir prenda</button>`;
-    const cards = S.garments.map((g) => `<div class="card"><span class="img"><img src="${S.gu[g.front_path] || ""}" alt=""></span><b>${esc(g.name)}</b><small class="suave">${CAT[g.category]}${g.back_path ? "" : " · sin espalda"}</small><button class="btn sec" data-act="borrarG" data-id="${g.id}">Borrar</button></div>`).join("");
-    $("v-armario").innerHTML = `<h1>Armario</h1>${S.garments.length || S.form ? "" : '<p class="suave">Aún no tienes prendas. Añade la primera para empezar.</p>'}${form}<div class="grid">${cards}</div>`;
+      <div class="duo">
+        <label class="sube">${I.foto}<span>Frente</span><input type="file" name="f" accept="image/*" required data-prev></label>
+        <label class="sube">${I.foto}<span>Espalda (opcional)</span><input type="file" name="b" accept="image/*" data-prev></label>
+      </div>
+      <p class="nota-f">Fotografía la prenda sola, extendida sobre una superficie lisa. El fondo se quita solo.</p>
+      <div class="fila-b"><button class="btn cinta" id="gbtn">Guardar prenda</button><button class="btn sec" type="button" data-act="cancelarG">Cancelar</button></div></form>` : "";
+    const lista = S.garments.filter((g) => S.filtro === "todas" || g.category === S.filtro);
+    const cards = lista.map((g) => `<div class="card"><span class="img"><img src="${S.gu[g.front_path] || ""}" alt="${esc(g.name)}" loading="lazy"></span><b>${esc(g.name)}</b><small class="suave">${CAT[g.category]}${g.back_path ? "" : " · sin espalda"}</small><div class="fila"><button class="btn sec peq" data-act="probarG" data-id="${g.id}">Probar</button><button class="btn sec peq icon" data-act="borrarG" data-id="${g.id}" aria-label="Borrar ${esc(g.name)}">${I.basura}</button></div></div>`).join("");
+    const vacio = !lleno && !S.form && S.cargado ? `<div class="vacio-b"><p>Tu armario está vacío. Añade tu primera prenda para probártela.</p><button class="btn cinta" data-act="nuevaG">${I.mas}Añadir prenda</button></div>` : "";
+    $("v-armario").innerHTML = `<div class="cab"><h1>Armario</h1>${lleno && !S.form ? `<button class="btn cinta peq" data-act="nuevaG">${I.mas}Añadir</button>` : ""}</div>
+      ${lleno ? `<div class="filtros" role="group" aria-label="Filtrar por categoría">${cats.map((k) => `<button data-act="filtro" data-k="${k}" aria-pressed="${S.filtro === k}">${k === "todas" ? "Todas" : CAT[k]}</button>`).join("")}</div>` : ""}
+      ${form}${vacio}<div class="grid">${cards}</div>`;
   }
   function pProbador() {
     const r = S.res[S.side], img = r?.url || baseUrl(S.side);
-    const chips = S.garments.filter((g) => PROBABLES.includes(g.category)).map((g) => `<button class="chip${S.sel.includes(g.id) ? " on" : ""}" data-act="usar" data-id="${g.id}"><img src="${S.gu[g.front_path] || ""}" alt=""><small>${esc(g.name)}</small></button>`).join("");
-    $("v-probador").innerHTML = `<h1>Probador</h1>
-      <div class="seg"><button data-act="lado" data-side="front" aria-pressed="${S.side === "front"}">Frente</button><button data-act="lado" data-side="back" aria-pressed="${S.side === "back"}">Espalda</button></div>
-      <div id="stage">${img ? `<img class="base" src="${img}" alt="Tu gemelo">` : `<div class="vacio">Sube tu foto de ${S.side === "front" ? "frente" : "espalda"} en la pestaña Yo.</div>`}</div>
-      <div class="ctrl"><button class="btn" data-act="vestir" ${S.sel.length && img ? "" : "disabled"}>Vestir</button>
-        <button class="btn sec" data-act="limpiar" ${S.sel.length ? "" : "disabled"}>Quitar todo</button>
-        <button class="btn sec" data-act="guardar" ${r?.blob ? "" : "disabled"}>Guardar outfit</button></div>
-      <p class="suave" style="font-size:.85rem">Elige prendas (una por categoría) y pulsa Vestir. Cada prenda tarda entre 1 y 2 minutos en el servidor gratuito.</p>
-      <div class="tira">${chips || '<span class="suave">Añade prendas en el Armario.</span>'}</div>`;
+    const chips = S.garments.filter((g) => PROBABLES.includes(g.category)).map((g) => `<button class="chip${S.sel.includes(g.id) ? " on" : ""}" data-act="usar" data-id="${g.id}" aria-pressed="${S.sel.includes(g.id)}"><img src="${S.gu[g.front_path] || ""}" alt=""><small>${esc(g.name)}</small></button>`).join("");
+    const lado = S.side === "front" ? "frente" : "espalda";
+    $("v-probador").innerHTML = `<div class="cab"><h1>Probador</h1></div>
+      <div class="seg" role="group" aria-label="Lado"><button data-act="lado" data-side="front" aria-pressed="${S.side === "front"}">Frente</button><button data-act="lado" data-side="back" aria-pressed="${S.side === "back"}">Espalda</button></div>
+      <div class="marco"><div class="cinta-v" aria-hidden="true"></div>
+        <div id="stage">${img ? `<img class="base" src="${img}" alt="Tu gemelo digital">` : `<div class="vacio"><span>Aún no tienes foto de ${lado}.</span><button class="btn cinta peq" data-act="irYo">Subir foto</button></div>`}
+          ${S.vistiendo ? `<div class="espera"><span>Vistiendo a tu gemelo</span><small>Puede tardar 1–2 min por prenda</small></div>` : ""}</div></div>
+      <div class="ctrl"><button class="btn" data-act="vestir" ${S.sel.length && img && !S.vistiendo ? "" : "disabled"}>${I.varita}Vestir${S.sel.length ? " (" + S.sel.length + ")" : ""}</button>
+        <button class="btn sec" data-act="limpiar" ${S.sel.length && !S.vistiendo ? "" : "disabled"}>Quitar</button>
+        <button class="btn sec icon" data-act="guardar" ${r?.blob ? "" : "disabled"} aria-label="Guardar outfit">${I.guardar}</button></div>
+      <div class="tira-t"><h2>Tu ropa</h2><small class="suave">Una prenda por categoría</small></div>
+      <div class="tira">${chips || '<span class="suave" style="font-size:.9rem">Añade prendas en el Armario para probártelas.</span>'}</div>`;
   }
   function pOutfits() {
-    $("v-outfits").innerHTML = `<h1>Outfits</h1>` + (S.outfits.length
-      ? `<div class="grid">${S.outfits.map((o) => `<div class="card"><span class="img"><img src="${S.ou[o.preview_path] || ""}" alt=""></span><b>${esc(o.name)}</b><button class="btn" data-act="probarO" data-id="${o.id}">Usar</button><button class="btn sec" data-act="borrarO" data-id="${o.id}">Borrar</button></div>`).join("")}</div>`
-      : '<p class="suave">Cuando guardes una combinación desde el Probador, aparecerá aquí.</p>');
+    $("v-outfits").innerHTML = `<div class="cab"><h1>Outfits</h1></div>` + (S.outfits.length
+      ? `<div class="grid">${S.outfits.map((o) => `<div class="card"><span class="img"><img src="${S.ou[o.preview_path] || ""}" alt="${esc(o.name)}" loading="lazy"></span><b>${esc(o.name)}</b><div class="fila"><button class="btn cinta peq" data-act="probarO" data-id="${o.id}">Usar</button><button class="btn sec peq icon" data-act="borrarO" data-id="${o.id}" aria-label="Borrar ${esc(o.name)}">${I.basura}</button></div></div>`).join("")}</div>`
+      : '<div class="vacio-b"><p>Aquí verás las combinaciones que guardes desde el Probador.</p><button class="btn cinta" data-act="irProbador">Ir al Probador</button></div>');
   }
   const pintar = () => { pYo(); pArmario(); pProbador(); pOutfits(); };
 
@@ -325,26 +444,34 @@
     if (!gs.length) return;
     const ruta = (g) => (lado === "back" ? g.back_path : g.front_path), falta = gs.find((g) => !ruta(g));
     if (falta) return aviso(`"${falta.name}" no tiene foto de espalda.`, 5000);
+    S.vistiendo = true; pProbador();
     try {
       let persona = await comoJpeg(await (await fetch(baseUrl(lado))).blob());
       for (let i = 0; i < gs.length; i++) {
-        aviso(`Vistiendo ${i + 1} de ${gs.length}: ${gs[i].name}… (1–2 min)`, 0);
+        aviso(`Vistiendo ${i + 1} de ${gs.length}: ${gs[i].name}…`, 0);
         const prenda = await comoJpeg(await (await fetch(S.gu[ruta(gs[i])])).blob());
         persona = await vestir(persona, prenda, TIPO[gs[i].category]);
       }
-      S.res[lado] = { blob: persona, url: URL.createObjectURL(persona) }; pProbador(); aviso("Listo.");
-    } catch (e) { console.error(e); aviso(errIA(e), 8000); }
+      S.res[lado] = { blob: persona, url: URL.createObjectURL(persona) }; S.vistiendo = false; pProbador(); aviso("Listo.");
+    } catch (e) { console.error(e); S.vistiendo = false; pProbador(); aviso(errIA(e), 8000); }
   }
   const acts = {
     salir: () => sb.auth.signOut(),
-    nuevaG: () => { S.form = true; pArmario(); },
+    nuevaG: () => { S.form = true; pArmario(); $("fg")?.scrollIntoView({ behavior: "smooth", block: "start" }); },
     cancelarG: () => { S.form = false; pArmario(); },
+    filtro: (b) => { S.filtro = b.dataset.k; pArmario(); },
+    irYo: () => ir("yo"),
+    irProbador: () => ir("probador"),
     lado: (b) => { S.side = b.dataset.side; pProbador(); },
     usar: (b) => {
+      if (S.vistiendo) return;
       const g = garm(b.dataset.id);
       S.sel = S.sel.includes(g.id) ? S.sel.filter((x) => x !== g.id) : [...S.sel.filter((x) => garm(x).category !== g.category), g.id];
-      S.res = {}; pProbador();
+      S.res = {}; const sc = document.querySelector(".tira")?.scrollLeft; pProbador(); const t = document.querySelector(".tira"); if (t && sc) t.scrollLeft = sc;
     },
+    probarG: (b) => { const g = garm(b.dataset.id); if (!g) return;
+      if (!PROBABLES.includes(g.category)) return aviso("Esta categoría aún no se puede probar.", 3000);
+      S.sel = [g.id]; S.res = {}; pProbador(); ir("probador"); },
     limpiar: () => { S.sel = []; S.res = {}; pProbador(); },
     vestir: () => ocupado(vestirSel),
     traje: (b) => ocupado(async () => {
@@ -383,7 +510,14 @@
     },
   };
   document.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b) acts[b.dataset.act]?.(b); });
-  document.addEventListener("change", (e) => { const t = e.target; if (t.dataset?.av && t.files[0]) subirAvatar(t.dataset.av, t.files[0]); });
+  document.addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset?.av && t.files[0]) subirAvatar(t.dataset.av, t.files[0]);
+    if (t.dataset?.prev) { // vista previa de la foto elegida en el formulario de prenda
+      const l = t.closest(".sube"), f = t.files[0];
+      if (l && f) { l.style.backgroundImage = `url("${URL.createObjectURL(f)}")`; l.classList.add("lleno"); }
+    }
+  });
   document.addEventListener("input", (e) => {
     if (e.target.id === "hftok") { const v = e.target.value.trim(); v ? localStorage.setItem("hf_token", v) : localStorage.removeItem("hf_token"); }
   });
@@ -394,13 +528,13 @@
     document.querySelectorAll(".vista").forEach((s) => (s.hidden = s.id !== "v-" + v));
     document.querySelectorAll("nav button").forEach((b) =>
       b.dataset.v === v ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
-    history.replaceState(null, "", "#" + v);
+    history.replaceState(null, "", "#" + v); window.scrollTo(0, 0);
   }
   document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => ir(b.dataset.v)));
   function mostrar(sesion) {
     $("login").hidden = !!sesion; $("app").hidden = !sesion; S.user = sesion?.user || null;
     if (sesion) { ir(location.hash.slice(1) || "probador"); if (S.para !== S.user.id) { S.para = S.user.id; setTimeout(cargar, 0); } }
-    else { S.para = null; S.sel = []; S.res = {}; }
+    else { S.para = null; S.sel = []; S.res = {}; S.cargado = false; }
   }
 
   // ---- Login / registro ----
