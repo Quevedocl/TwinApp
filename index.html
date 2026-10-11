@@ -218,14 +218,15 @@
   const IMGLY = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/+esm";
   const GRADIO = "https://cdn.jsdelivr.net/npm/@gradio/client@1/+esm";
   // Modelo de prueba virtual (Space gratuito de Hugging Face). Si algún día cambia, se edita aquí.
-  const HF_SPACE = "zhengchong/CatVTON", HF_ENDPOINT = "/submit_function";
+  // (CatVTON dejó de funcionar: su Space falla al arrancar. IDM-VTON está activo y viste prendas de arriba.)
+  const HF_SPACE = "yisol/IDM-VTON", HF_ENDPOINT = "/tryon";
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const CAT = { superior: "Superior", inferior: "Inferior", enterito: "Enterito", abrigo: "Abrigo", calzado: "Calzado" };
-  const PROBABLES = ["superior", "inferior", "enterito", "abrigo"];
-  const ORDEN = ["inferior", "enterito", "superior", "abrigo"];            // de abajo hacia arriba
-  const TIPO = { inferior: "lower", enterito: "overall", superior: "upper", abrigo: "upper" };
+  const PROBABLES = ["superior", "abrigo"];       // la IA gratuita actual solo viste el torso
+  const ORDEN = ["superior", "abrigo"];            // de adentro hacia afuera
+  const GUARDABLES = ["superior", "abrigo", "inferior", "enterito"];
   const S = { user: null, profile: {}, garments: [], outfits: [], gu: {}, au: {}, ou: {}, sel: [], res: {}, side: "front", form: false, para: null, busy: false, vistiendo: false, filtro: "todas", cargado: false };
   const uid = () => S.user.id;
   const garm = (id) => S.garments.find((g) => g.id === id);
@@ -275,38 +276,70 @@
       return recortar(await removeBackground(peq, { model: "isnet_quint8", output: { format: "image/png" } }));
     } catch (e) { console.error(e); throw new Error("No se pudo quitar el fondo de la prenda. Revisa tu conexión e inténtalo de nuevo."); }
   }
-  // Traje gris genérico (silueta plana sobre fondo blanco) que se usa para "vaciar" la ropa original
+  // Polera gris lisa (sobre fondo blanco) que se usa para "vaciar" la ropa original del torso
   async function trajeGris() {
     const c = document.createElement("canvas"); c.width = 768; c.height = 1024;
     const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, 768, 1024);
-    const m = [[330,110],[210,150],[120,330],[210,375],[262,300],[272,520],[255,620],[240,960],[365,960],[384,640]];
+    const m = [[290,150],[140,220],[70,400],[170,430],[215,360],[215,860],[384,880]];
     x.beginPath(); m.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b)));
-    [...m].reverse().forEach(([a, b]) => x.lineTo(768 - a, b));
-    x.quadraticCurveTo(384, 230, 330, 110); x.closePath();
-    x.fillStyle = "#8b9099"; x.fill(); x.lineWidth = 4; x.strokeStyle = "#6c7079"; x.stroke();
+    [...m].slice(0, -1).reverse().forEach(([a, b]) => x.lineTo(768 - a, b));
+    x.quadraticCurveTo(384, 250, 290, 150); x.closePath();
+    x.fillStyle = "#9aa0a8"; x.fill(); x.lineWidth = 3; x.strokeStyle = "#7d838b"; x.stroke();
     return aBlob(c, "image/jpeg", 0.95);
+  }
+  // Encuadra la foto del usuario: detecta a la persona, la centra y recorta en proporción 3:5 con margen
+  async function encuadrar(file) {
+    const full = await lienzo(file, 1600, true);
+    try {
+      const { removeBackground } = await import(IMGLY);
+      const mini = document.createElement("canvas"), k = Math.min(1, 640 / Math.max(full.width, full.height));
+      mini.width = Math.round(full.width * k); mini.height = Math.round(full.height * k);
+      mini.getContext("2d").drawImage(full, 0, 0, mini.width, mini.height);
+      const cut = await lienzo(await removeBackground(await aBlob(mini), { model: "isnet_quint8", output: { format: "image/png" } }), 640);
+      const d = cut.getContext("2d").getImageData(0, 0, cut.width, cut.height).data;
+      let x0 = cut.width, y0 = cut.height, x1 = 0, y1 = 0;
+      for (let y = 0; y < cut.height; y++) for (let x = 0; x < cut.width; x++)
+        if (d[(y * cut.width + x) * 4 + 3] > 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      if (x1 - x0 < 20 || y1 - y0 < 40) throw new Error("sin persona");
+      const sx = full.width / cut.width, sy = full.height / cut.height;
+      const bx = x0 * sx, by = y0 * sy, bw = (x1 - x0) * sx, bh = (y1 - y0) * sy;
+      const h = bh * 1.14, w = Math.max(h * 0.6, bw * 1.2);
+      const H = w / 0.6 > h ? w / 0.6 : h, W = H * 0.6;
+      const o = document.createElement("canvas"); o.height = Math.min(1024, Math.round(H)); o.width = Math.round(o.height * 0.6);
+      const ctx = o.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, o.width, o.height);
+      const cx = bx + bw / 2, cy = by + bh / 2, kk = o.height / H;
+      ctx.drawImage(full, (-(cx - W / 2)) * kk, (-(cy - H / 2)) * kk, full.width * kk, full.height * kk);
+      return aBlob(o, "image/jpeg", 0.93);
+    } catch (e) { console.warn("No se pudo encuadrar, se usa la foto completa", e); return comoJpeg(full); }
   }
 
   // ---- Prueba virtual con IA (Hugging Face, gratis) ----
   let hf = null, hfTok = null, capaVacia = null;
-  async function vestir(persona, prenda, tipo) {
+  async function vestir(persona, prenda, descripcion) {
     const token = localStorage.getItem("hf_token") || undefined;
     const { Client, handle_file } = await import(GRADIO);
-    if (!hf || hfTok !== token) { hf = await Client.connect(HF_SPACE, token ? { hf_token: token } : {}); hfTok = token; }
-    if (!capaVacia) { const c = document.createElement("canvas"); c.width = c.height = 8; capaVacia = await aBlob(c); }
-    const r = await hf.predict(HF_ENDPOINT, {
-      person_image: { background: handle_file(persona), layers: [handle_file(capaVacia)], composite: null },
-      cloth_image: handle_file(prenda), cloth_type: tipo,
-      num_inference_steps: 30, guidance_scale: 2.5, seed: 42, show_type: "result only",
-    });
+    if (!hf || hfTok !== token) {
+      try { hf = await Client.connect(HF_SPACE, token ? { hf_token: token } : {}); hfTok = token; }
+      catch (e) { hf = null; throw new Error("SERVICIO"); }
+    }
+    let r;
+    try {
+      r = await hf.predict(HF_ENDPOINT, {
+        dict: { background: handle_file(persona), layers: [], composite: null },
+        garm_img: handle_file(prenda), garment_des: descripcion || "clothing",
+        is_checked: true, is_checked_crop: true, denoise_steps: 30, seed: 42,
+      });
+    } catch (e) { if (/load failed|failed to fetch|network/i.test(String(e?.message || e))) throw new Error("SERVICIO"); throw e; }
     const f = r.data?.[0]; const url = f?.url || f?.path || f;
     if (!url || typeof url !== "string") throw new Error("El modelo no devolvió una imagen.");
-    const resp = await fetch(url); if (!resp.ok) throw new Error("No se pudo descargar la imagen generada.");
+    let resp; try { resp = await fetch(url); } catch { throw new Error("SERVICIO"); }
+    if (!resp.ok) throw new Error("SERVICIO");
     return resp.blob();
   }
   const errIA = (e) => {
     const t = String(e?.message || e || "");
     return /quota|GPU|limit/i.test(t) ? "Se acabó tu cupo gratuito de GPU por ahora. Añade tu token de Hugging Face en Yo o espera un rato."
+      : t === "SERVICIO" ? "El servicio de IA gratuito no responde en este momento. Espera unos minutos y vuelve a intentarlo."
       : "No se pudo generar la imagen (" + t.slice(0, 120) + "). Reintenta en un momento.";
   };
 
@@ -341,11 +374,11 @@
   const baseUrl = (lado) => S.au[S.profile["base_" + lado + "_path"]] || S.au[S.profile["avatar_" + lado + "_path"]];
   function pYo() {
     const tile = (l, t) => { const u = baseUrl(l), tiene = !!S.profile["avatar_" + l + "_path"], traje = !!S.profile["base_" + l + "_path"];
-      return `<div class="tile"><label><span class="img">${u ? `<img src="${u}" alt="Foto de ${t.toLowerCase()}">` : `<em>${I.foto}<br>Sin foto</em>`}</span><b>${t}</b><span class="cambia">${I.foto}${tiene ? "Cambiar foto" : "Subir foto"}</span><input type="file" accept="image/*" data-av="${l}"></label>${tiene && !traje ? `<button class="btn sec peq" data-act="traje" data-l="${l}">Poner traje gris</button>` : ""}</div>`; };
+      return `<div class="tile"><label><span class="img">${u ? `<img src="${u}" alt="Foto de ${t.toLowerCase()}">` : `<em>${I.foto}<br>Sin foto</em>`}</span><b>${t}</b><span class="cambia">${I.foto}${tiene ? "Cambiar foto" : "Subir foto"}</span><input type="file" accept="image/*" data-av="${l}"></label>${tiene && !traje ? `<button class="btn sec peq" data-act="traje" data-l="${l}">Poner polera gris</button>` : ""}</div>`; };
     const nombre = S.profile.username || "";
     $("v-yo").innerHTML = `<div class="cab"><h1>Yo</h1></div>
       <div class="perfil"><span class="letra" aria-hidden="true">${esc(nombre.charAt(0).toUpperCase() || "·")}</span><b>${esc(nombre)}</b></div>
-      <p class="suave" style="margin-top:1rem;font-size:.92rem">Sube una foto de cuerpo completo de frente y otra de espalda: de pie, brazos algo separados, con buena luz. La IA reemplaza tu ropa por un traje gris y conserva tu cara y tus manos.</p>
+      <p class="suave" style="margin-top:1rem;font-size:.92rem">Sube una foto de cuerpo completo de frente y otra de espalda: de pie, brazos algo separados, con buena luz. La app te encuadra sola y la IA te pone una polera gris lisa como base para probarte ropa de arriba.</p>
       <div class="dos">${tile("front", "Frente")}${tile("back", "Espalda")}</div>
       <details><summary>Más cupo de IA gratis</summary>
         <p class="suave">Crea un token gratis (tipo Read) en huggingface.co/settings/tokens y pégalo aquí. Se guarda solo en este teléfono.</p>
@@ -358,7 +391,7 @@
     if (!cats.includes(S.filtro)) S.filtro = "todas";
     const form = S.form ? `<form id="fg"><h2>Nueva prenda</h2>
       <input name="n" placeholder="Nombre (ej. Polera negra oversize)" required aria-label="Nombre">
-      <select name="c" aria-label="Categoría">${PROBABLES.map((k) => `<option value="${k}">${CAT[k]}</option>`).join("")}</select>
+      <select name="c" aria-label="Categoría">${GUARDABLES.map((k) => `<option value="${k}">${CAT[k]}</option>`).join("")}</select>
       <div class="duo">
         <label class="sube">${I.foto}<span>Frente</span><input type="file" name="f" accept="image/*" required data-prev></label>
         <label class="sube">${I.foto}<span>Espalda (opcional)</span><input type="file" name="b" accept="image/*" data-prev></label>
@@ -384,7 +417,7 @@
       <div class="ctrl"><button class="btn" data-act="vestir" ${S.sel.length && img && !S.vistiendo ? "" : "disabled"}>${I.varita}Vestir${S.sel.length ? " (" + S.sel.length + ")" : ""}</button>
         <button class="btn sec" data-act="limpiar" ${S.sel.length && !S.vistiendo ? "" : "disabled"}>Quitar</button>
         <button class="btn sec icon" data-act="guardar" ${r?.blob ? "" : "disabled"} aria-label="Guardar outfit">${I.guardar}</button></div>
-      <div class="tira-t"><h2>Tu ropa</h2><small class="suave">Una prenda por categoría</small></div>
+      <div class="tira-t"><h2>Tu ropa</h2><small class="suave">Por ahora solo ropa de arriba</small></div>
       <div class="tira">${chips || '<span class="suave" style="font-size:.9rem">Añade prendas en el Armario para probártelas.</span>'}</div>`;
   }
   function pOutfits() {
@@ -400,21 +433,21 @@
     S.busy = true; try { await fn(); } finally { S.busy = false; }
   }
   async function ponerTraje(lado, foto) {
-    aviso("Vistiéndote con el traje gris… puede tardar 1–2 min la primera vez.", 0);
+    aviso("Preparando tu base con polera gris… puede tardar 1–2 min la primera vez.", 0);
     try {
-      const out = await vestir(foto, await trajeGris(), "overall");
+      const out = await vestir(foto, await trajeGris(), "plain gray t-shirt");
       const campo = "base_" + lado + "_path", viejo = S.profile[campo], path = `${uid()}/${lado}-traje-${Date.now()}.jpg`;
       await subir("avatars", path, out);
       const { error } = await sb.from("profiles").update({ [campo]: path }).eq("id", uid()); if (error) throw error;
       if (viejo) sb.storage.from("avatars").remove([viejo]);
-      S.res[lado] = null; await cargar(); aviso("Listo: ya tienes tu gemelo con traje gris.");
+      S.res[lado] = null; await cargar(); aviso("Listo: ya tienes tu base con polera gris.");
     } catch (e) { console.error(e); await cargar(); aviso("Tu foto se guardó, pero " + errIA(e), 8000); }
   }
   async function subirAvatar(lado, file) {
     await ocupado(async () => {
       aviso("Guardando tu foto…", 0); let foto;
       try {
-        foto = await comoJpeg(file);
+        foto = await encuadrar(file);
         const campo = "avatar_" + lado + "_path", cb = "base_" + lado + "_path", path = `${uid()}/${lado}-${Date.now()}.jpg`;
         const viejos = [S.profile[campo], S.profile[cb]].filter(Boolean);
         await subir("avatars", path, foto);
@@ -450,7 +483,7 @@
       for (let i = 0; i < gs.length; i++) {
         aviso(`Vistiendo ${i + 1} de ${gs.length}: ${gs[i].name}…`, 0);
         const prenda = await comoJpeg(await (await fetch(S.gu[ruta(gs[i])])).blob());
-        persona = await vestir(persona, prenda, TIPO[gs[i].category]);
+        persona = await vestir(persona, prenda, gs[i].name);
       }
       S.res[lado] = { blob: persona, url: URL.createObjectURL(persona) }; S.vistiendo = false; pProbador(); aviso("Listo.");
     } catch (e) { console.error(e); S.vistiendo = false; pProbador(); aviso(errIA(e), 8000); }
